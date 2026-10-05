@@ -1,0 +1,64 @@
+{
+  "provider": "CryptoDataDownload",
+  "exchange": "Bitstamp",
+  "pair": "BTC/USD",
+  "source_url": "https://www.cryptodatadownload.com/cdd/Bitstamp_BTCUSD_d.csv",
+  "documentation_url": "https://www.cryptodatadownload.com/data/bitstamp/",
+  "frequency": "daily",
+  "timezone": "UTC",
+  "timestamp_column": "unix (seconds or milliseconds; source date strings ignored)",
+  "columns": [
+    "date",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume_btc"
+  ],
+  "volume_unit": "BTC",
+  "first_date": "2020-01-01",
+  "last_date": "2026-10-04",
+  "rows": 2469,
+  "as_of": "2026-10-05",
+  "retrieved_at_utc": "2026-10-05T17:28:43.873449+00:00",
+  "raw_source_sha256": "530249c71df1eed15a26e2104d5920645165b23abf1dc98fb09585568489c215",
+  "snapshot_sha256": "414fc7803b498adbbd2b96771d95ad8027f68fb59103b2ebd763c589c6e885d8",
+  "supplemental_candles": [
+    {
+      "source_url": "https://www.bitstamp.net/api/v2/ohlc/btcusd/?step=86400&limit=1&start=1779408000&end=1779494399&exclude_current_candle=true",
+      "retrieved_at_utc": "2026-10-05T17:28:43.814029+00:00",
+      "response_sha256": "b36d523e45a5137cde9aaa8aa9a0086c1a8c0033e9f9ef6e53bc2d35e7c917fb",
+      "raw_response": {
+        "data": {
+          "pair": "BTC/USD",
+          "ohlc": [
+            {
+              "timestamp": "1779408000",
+              "open": "77565.86",
+              "high": "77819.99",
+              "low": "75285.00",
+              "close": "75451.01",
+              "volume": "725.05091980"
+            }
+          ]
+        }
+      },
+      "reason": "Daily candle absent from the CryptoDataDownload CSV.",
+      "candle": {
+        "date": "2026-05-22",
+        "open": 77565.86,
+        "high": 77819.99,
+        "low": 75285.0,
+        "close": 75451.01,
+        "volume_btc": 725.0509198
+      }
+    }
+  ],
+  "transformations": [
+    "Keep candles starting on/after 2020-01-01 and strictly before as_of (UTC).",
+    "Use Unix timestamps; sort ascending; retain OHLC and volume in BTC.",
+    "Recover missing source candles from the official Bitstamp API with exact UTC timestamps; record every response.",
+    "Reject missing days, duplicates, non-finite values and invalid OHLCV.",
+    "No interpolation or synthetic observations."
+  ]
+}

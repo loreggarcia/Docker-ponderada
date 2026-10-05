@@ -1,0 +1,221 @@
+{
+  "metadata": {
+    "pair": "BTC/USD",
+    "target": "monthly_close",
+    "currency": "USD",
+    "as_of": "2026-10-05",
+    "target_month": "2026-11",
+    "last_complete_month": "2026-09",
+    "data_start": "2020-01-01",
+    "snapshot_last_daily_date": "2026-10-04",
+    "complete_months": 81,
+    "feature_names": [
+      "return_1m",
+      "return_3m",
+      "return_6m",
+      "price_to_ma3",
+      "price_to_ma6",
+      "range_fraction",
+      "realized_volatility",
+      "volume_change_1m",
+      "months_since_halving",
+      "block_reward_btc"
+    ],
+    "horizons": [
+      1,
+      2
+    ],
+    "fit": {
+      "1": {
+        "training_samples": 74,
+        "alpha": 1.0,
+        "feature_names": [
+          "return_1m",
+          "return_3m",
+          "return_6m",
+          "price_to_ma3",
+          "price_to_ma6",
+          "range_fraction",
+          "realized_volatility",
+          "volume_change_1m"
+        ],
+        "validation_mae_by_alpha": {
+          "1.0": 8956.030501065938,
+          "10.0": 9091.679871042106,
+          "100.0": 9177.543887259197,
+          "1000.0": 9275.561128192388
+        },
+        "last_training_target": "2026-09"
+      },
+      "2": {
+        "training_samples": 73,
+        "alpha": 1.0,
+        "feature_names": [
+          "return_1m",
+          "return_3m",
+          "return_6m",
+          "price_to_ma3",
+          "price_to_ma6",
+          "range_fraction",
+          "realized_volatility",
+          "volume_change_1m",
+          "months_since_halving",
+          "block_reward_btc"
+        ],
+        "validation_mae_by_alpha": {
+          "1.0": 15611.008500273305,
+          "10.0": 16294.649179728485,
+          "100.0": 16861.134728958015,
+          "1000.0": 17210.089973157283
+        },
+        "last_training_target": "2026-09"
+      }
+    },
+    "csv_sha256": "414fc7803b498adbbd2b96771d95ad8027f68fb59103b2ebd763c589c6e885d8",
+    "source": {
+      "provider": "CryptoDataDownload",
+      "exchange": "Bitstamp",
+      "pair": "BTC/USD",
+      "source_url": "https://www.cryptodatadownload.com/cdd/Bitstamp_BTCUSD_d.csv",
+      "documentation_url": "https://www.cryptodatadownload.com/data/bitstamp/",
+      "frequency": "daily",
+      "timezone": "UTC",
+      "timestamp_column": "unix (seconds or milliseconds; source date strings ignored)",
+      "columns": [
+        "date",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume_btc"
+      ],
+      "volume_unit": "BTC",
+      "first_date": "2020-01-01",
+      "last_date": "2026-10-04",
+      "rows": 2469,
+      "as_of": "2026-10-05",
+      "retrieved_at_utc": "2026-10-05T17:28:43.873449+00:00",
+      "raw_source_sha256": "530249c71df1eed15a26e2104d5920645165b23abf1dc98fb09585568489c215",
+      "snapshot_sha256": "414fc7803b498adbbd2b96771d95ad8027f68fb59103b2ebd763c589c6e885d8",
+      "supplemental_candles": [
+        {
+          "source_url": "https://www.bitstamp.net/api/v2/ohlc/btcusd/?step=86400&limit=1&start=1779408000&end=1779494399&exclude_current_candle=true",
+          "retrieved_at_utc": "2026-10-05T17:28:43.814029+00:00",
+          "response_sha256": "b36d523e45a5137cde9aaa8aa9a0086c1a8c0033e9f9ef6e53bc2d35e7c917fb",
+          "raw_response": {
+            "data": {
+              "pair": "BTC/USD",
+              "ohlc": [
+                {
+                  "timestamp": "1779408000",
+                  "open": "77565.86",
+                  "high": "77819.99",
+                  "low": "75285.00",
+                  "close": "75451.01",
+                  "volume": "725.05091980"
+                }
+              ]
+            }
+          },
+          "reason": "Daily candle absent from the CryptoDataDownload CSV.",
+          "candle": {
+            "date": "2026-05-22",
+            "open": 77565.86,
+            "high": 77819.99,
+            "low": 75285.0,
+            "close": 75451.01,
+            "volume_btc": 725.0509198
+          }
+        }
+      ],
+      "transformations": [
+        "Keep candles starting on/after 2020-01-01 and strictly before as_of (UTC).",
+        "Use Unix timestamps; sort ascending; retain OHLC and volume in BTC.",
+        "Recover missing source candles from the official Bitstamp API with exact UTC timestamps; record every response.",
+        "Reject missing days, duplicates, non-finite values and invalid OHLCV.",
+        "No interpolation or synthetic observations."
+      ]
+    },
+    "trained_at_utc": "2026-10-05T20:17:27.362097+00:00",
+    "python_version": "3.13.16",
+    "sklearn_version": "1.9.1",
+    "evaluation": "12 alvos finais já conhecidos: comparação retrospectiva, janela expansiva e ajuste interno cronológico; rótulos disponíveis na origem.",
+    "model_selection": "Features por horizonte escolhidas no desenvolvimento até 2025-08: 1 mês sem halving, 2 meses com halving. A comparação final é retrospectiva, não um novo teste independente."
+  },
+  "metrics": {
+    "1": {
+      "selected_model": "ridge_without_halving",
+      "test_samples": 12,
+      "first_target_month": "2025-10",
+      "last_target_month": "2026-09",
+      "ridge_halving": {
+        "mae_usd": 10701.99,
+        "rmse_usd": 11720.29,
+        "mape_pct": 14.18,
+        "direction_accuracy_pct": 33.33
+      },
+      "ridge_without_halving": {
+        "mae_usd": 10118.93,
+        "rmse_usd": 11573.08,
+        "mape_pct": 13.5,
+        "direction_accuracy_pct": 41.67
+      },
+      "persistence": {
+        "mae_usd": 8268.77,
+        "rmse_usd": 10011.65,
+        "mape_pct": 11.0,
+        "direction_accuracy_pct": 0.0
+      }
+    },
+    "2": {
+      "selected_model": "ridge_halving",
+      "test_samples": 12,
+      "first_target_month": "2025-10",
+      "last_target_month": "2026-09",
+      "ridge_halving": {
+        "mae_usd": 17897.24,
+        "rmse_usd": 20179.91,
+        "mape_pct": 23.45,
+        "direction_accuracy_pct": 25.0
+      },
+      "ridge_without_halving": {
+        "mae_usd": 17191.54,
+        "rmse_usd": 19400.99,
+        "mape_pct": 22.56,
+        "direction_accuracy_pct": 33.33
+      },
+      "persistence": {
+        "mae_usd": 14475.46,
+        "rmse_usd": 16062.22,
+        "mape_pct": 19.23,
+        "direction_accuracy_pct": 0.0
+      }
+    }
+  },
+  "forecast": {
+    "pair": "BTC/USD",
+    "currency": "USD",
+    "target": "monthly_close",
+    "target_month": "2026-11",
+    "target_date": "2026-11-30",
+    "as_of": "2026-10-05",
+    "last_complete_month": "2026-09",
+    "horizon_months": 2,
+    "last_close_usd": 83562.58,
+    "predicted_close_usd": 83568.56,
+    "predicted_change_pct": 0.01,
+    "empirical_error_band_usd": {
+      "lower": 61285.68,
+      "upper": 113953.29,
+      "historical_absolute_log_error_quantile": 0.8,
+      "calibration_samples": 12,
+      "note": "Faixa empírica de erros históricos; não garante cobertura futura de 80%."
+    },
+    "model": "StandardScaler + Ridge (retorno logarítmico, com halving)",
+    "halving_features": {
+      "months_since_halving": 29.338809034907598,
+      "block_reward_btc": 3.125
+    },
+    "note": "Previsão experimental. A variação é relativa ao último mês fechado, não ao preço atual. Não é recomendação de investimento."
+  }
+}
