@@ -8,7 +8,7 @@
 
 - O resultado previsto é o **preço de fechamento, em dólares, do último dia do próximo mês calendário**. A referência desta entrega é **05/10/2026**: o mês desejado é **novembro de 2026**, com fechamento em **30/11/2026**.
 
-O texto abaixo organiza a explicação técnica por etapas, com assistência de IA. Os blocos de pedidos resumem o que cada etapa solicita ao código; não representam uma transcrição cronológica completa da conversa. O Dev Log pessoal fica ao final.
+O Dev Log está no início deste README, no relato de desenvolvimento por etapas. Os blocos de pedidos resumem o que cada etapa solicita ao código; não representam uma transcrição cronológica completa da conversa. O uso de IA está declarado ao final.
 
 - **Primeiro, a origem dos dados.** Eu tô usando os dados do [CryptoDataDownload](https://www.cryptodatadownload.com/data/bitstamp/), porque já usei em outro projeto. O CSV utilizado contém **2.469 dias, de 01/01/2020 a 04/10/2026**, último dia observado integralmente na referência desta execução. Durante a execução pedi para a AI verificar o arquivo, ela descobriu que faltava o registro do dia **22/05/2026**, daí a solução foi puxar da API oficial da Bitstamp, que é a exchange de origem desse histórico.
 
@@ -270,32 +270,140 @@ Esse artefato suporta outubro e novembro de 2026. Um mês inválido ou fora dos 
 
 > Crie um Dockerfile com Python e as dependências do projeto. No Docker Compose, configure um serviço para executar o treinamento e outro para manter a API funcionando. Faça o modelo gerado no treinamento chegar à API por uma pasta compartilhada e deixe os comandos de execução documentados.
 
-O diagrama UML de sequência abaixo mostra como o modelo chega ao backend. Ele fica no próprio README, em Mermaid, para ser exibido no GitHub:
+## Arquitetura e arquivos
+
+- **Daí eu pedi pra AI organizar essa parte em dois diagramas**, porque queria enxergar tanto as partes do projeto quanto a ordem em que tudo acontece. O pedido ficou assim:
+
+> Crie um diagrama de sequência mostrando desde a leitura dos dados até a resposta da API, e um diagrama de blocos mostrando os arquivos, os dois containers e a pasta compartilhada. Use a estrutura que já existe no projeto e deixe os dois visíveis no README, com o código Mermaid disponível.
+
+- **Primeiro, o diagrama de sequência.** Eu leio ele de cima pra baixo: o treinamento começa lendo o histórico salvo, usa o `data.py` pra agrupar os meses completos e o `features.py` pra preparar os atributos. Depois, o `train.py` treina, avalia e salva o `model.joblib` junto dos relatórios na pasta `artifacts/`.
+
+![Diagrama de sequência da arquitetura de previsão mensal do Bitcoin](artifacts/architecture.png)
+
+Com o treinamento concluído, eu inicio a API. O `api.py` chama o `load_artifact()` do `forecast.py`, que lê o modelo salvo, verifica o conteúdo e faz uma previsão de teste. Aí esse conteúdo fica guardado na memória da aplicação. Quando eu consulto `/health`, verifico se a API conseguiu carregar o modelo. Depois, na chamada de `/predict`, o `forecast.py` escolhe o horizonte, usa os atributos daquele modelo e transforma o retorno previsto em preço em dólares. A API devolve tudo em JSON.
+
+Pra novembro, ele usa o modelo de dois meses, porque o último mês completo é setembro. O `StandardScaler` e a Ridge já foram ajustados no treinamento; nessa consulta eles aplicam o que aprenderam. Se eu treinar de novo, preciso reiniciar a API pra ela carregar o arquivo atualizado.
+
+<details>
+<summary>Ver o Mermaid do diagrama de sequência</summary>
 
 ```mermaid
 sequenceDiagram
-    participant Dados as data/btcusd_daily.csv no computador
+    autonumber
+
+    participant dados as Computador - data/
     box Container de treinamento
-        participant Treino as bitcoin.train
+        participant treino as train.py
     end
-    participant Modelo as artifacts/model.joblib no computador
+    participant arquivos as Computador - artifacts/
     box Container da API
-        participant API as FastAPI e modelo carregado
+        participant api as api.py - FastAPI
+        participant previsao as forecast.py
     end
-    participant Cliente as scripts/demo.py
-    Treino->>Dados: Ler CSV pela montagem somente leitura
-    Dados-->>Treino: Histórico diário
-    Note over Treino: Agregar, treinar e avaliar
-    Treino->>Modelo: Salvar pela montagem de artifacts
-    Note over Treino: Treinamento termina e o container encerra
-    API->>Modelo: Carregar na inicialização, somente leitura
-    Modelo-->>API: Modelos, features, metadados e métricas
-    Cliente->>API: GET /health
-    API-->>Cliente: Estado do serviço e do modelo
-    Cliente->>API: GET /predict
-    Note over API: Calcular previsão com o modelo em memória
-    API-->>Cliente: Previsão em JSON
+    participant cliente as demo.py ou curl
+
+    treino->>dados: Ler CSV e source.json (somente leitura)
+    dados-->>treino: Histórico diário e origem
+    treino->>treino: data.py agrupa meses completos
+    treino->>treino: features.py calcula os atributos
+    treino->>treino: Treinar e avaliar os modelos
+    treino->>arquivos: Salvar model.joblib e relatórios
+
+    api->>previsao: load_artifact() na inicialização
+    previsao->>arquivos: Ler model.joblib (somente leitura)
+    arquivos-->>previsao: Modelos, features, métricas e metadados
+    previsao->>previsao: Validar e testar uma previsão
+    previsao-->>api: Artefato validado
+    api->>api: Guardar artefato em memória
+
+    cliente->>api: GET /health
+    api-->>cliente: HTTP 200 - modelo carregado
+    cliente->>api: GET /predict?target_month=2026-11
+    api->>previsao: predict(artefato, mês solicitado)
+    previsao->>previsao: Escolher horizonte e features
+    previsao->>previsao: Padronizar e executar o modelo
+    previsao->>previsao: Converter retorno em dólares
+    previsao-->>api: Preço, faixa de erro e referência
+    api-->>cliente: HTTP 200 - resposta JSON
 ```
+
+</details>
+
+- **Depois, o diagrama de blocos.** Aqui eu olho onde cada parte fica e como elas se conectam. A coleta busca o histórico no CryptoDataDownload e consulta a Bitstamp se precisar recuperar algum dia ausente. O CSV e o `source.json` ficam em `data/`, no meu computador. O treinamento lê esses arquivos pela montagem configurada no Compose.
+
+![Diagrama de blocos da arquitetura de previsão mensal do Bitcoin](artifacts/architecture-blocks.png)
+
+O `Dockerfile` constrói uma imagem com Python, as dependências e o código. Daí o Compose usa essa mesma imagem nos dois serviços: o `train` executa o treinamento e encerra; o `api` fica rodando pra receber as consultas. O que liga os dois é a pasta `artifacts/`: o treino grava nela e a API acessa com `:ro`, que significa somente leitura. Como essa pasta está no meu computador, o modelo continua salvo mesmo depois que o container de treinamento termina.
+
+O arquivo que a API carrega é o `model.joblib`. Já o `results.json` e os outros relatórios ficam disponíveis pra eu conferir o resultado do treinamento. Os arquivos `compare.py` e `research.py` aparecem numa parte opcional, porque são os experimentos que eu executo pra comparar alternativas e ver as métricas no terminal. As setas pontilhadas mostram o uso da imagem e a configuração pelo Compose; as contínuas mostram o caminho dos dados e das consultas.
+
+As duas imagens foram geradas a partir do Mermaid e ficam salvas em `artifacts/` como parte da documentação. Assim, elas aparecem no README mesmo em um visualizador que não renderiza Mermaid. Os códigos ficam disponíveis nos blocos expansíveis pra eu conseguir consultar ou alterar depois.
+
+<details>
+<summary>Ver o Mermaid do diagrama de blocos</summary>
+
+```mermaid
+flowchart TB
+    subgraph fontes["Fontes externas"]
+        cdd["CryptoDataDownload"]
+        bitstamp["API oficial da Bitstamp"]
+    end
+
+    coleta["Coleta e atualização: bitcoin/data.py"]
+
+    subgraph construcao["Imagem e Compose"]
+        arquivosBuild["Dockerfile + requirements.txt + bitcoin/"]
+        imagem["Imagem Docker: bitcoin-monthly:local"]
+        compose["compose.yaml"]
+    end
+
+    subgraph dadosLocais["data/ no computador"]
+        dados["btcusd_daily.csv + source.json"]
+    end
+
+    subgraph containerTreino["Container train"]
+        treino["train.py + data.py + features.py"]
+    end
+
+    subgraph artefatosLocais["artifacts/ no computador"]
+        modelo["model.joblib"]
+        relatorios["results.json, monthly.csv, backtest.csv e evaluation.png"]
+    end
+
+    subgraph containerApi["Container api"]
+        backend["FastAPI e Uvicorn: api.py + forecast.py"]
+    end
+
+    cliente["Cliente: scripts/demo.py ou curl"]
+
+    subgraph experimentos["Pesquisa opcional"]
+        pesquisa["compare.py e research.py"]
+        terminal["Resultados no terminal"]
+    end
+
+    cdd -->|"CSV diário"| coleta
+    bitstamp -->|"Recuperação de dias ausentes"| coleta
+    coleta -->|"Salva histórico e origem"| dados
+
+    arquivosBuild -->|"Construção da imagem"| imagem
+    imagem -.->|"Usada pelo container"| treino
+    imagem -.->|"Usada pelo container"| backend
+    compose -.->|"Configura comando e montagens"| treino
+    compose -.->|"Configura comando, montagens e porta"| backend
+
+    dados -->|"Montagem somente leitura"| treino
+    treino -->|"Grava modelo treinado"| modelo
+    treino -->|"Grava resultados da avaliação"| relatorios
+
+    modelo -->|"Montagem somente leitura e carga na inicialização"| backend
+    cliente -->|"HTTP: /health e /predict"| backend
+    backend -->|"Resposta JSON"| cliente
+
+    dados -->|"Histórico para comparação"| pesquisa
+    pesquisa -->|"Imprime métricas e previsões"| terminal
+```
+
+</details>
 
 O [Dockerfile](Dockerfile) define a **imagem**, que é a base usada para criar os containers. Ela parte de `python:3.13-slim`, instala as versões de bibliotecas registradas em [requirements.txt](requirements.txt) e copia a pasta `bitcoin/` para dentro da imagem. O diretório de trabalho é `/app`.
 
@@ -407,13 +515,17 @@ python -m uvicorn bitcoin.api:app --host 127.0.0.1 --port 8000
 
 A porta 8000 precisa estar livre. Em outro terminal, `python3 scripts/demo.py` demonstra a consulta. As opções `--url` e `--target-month` permitem informar outro endereço e um mês suportado.
 
+## Nota técnica sobre as datas da avaliação
+
+O corte de desenvolvimento em **31/08/2025** é anterior aos **meses alvo** da avaliação de outubro/2025 a setembro/2026. Para o horizonte de dois meses, a primeira previsão desse período parte de agosto/2025 para estimar outubro/2025. Portanto, esse corte não é anterior a todas as origens das previsões. Esta nota esclarece a referência temporal do relato de desenvolvimento, preservado acima.
+
 ## Limitações e entrega
 
 - A amostra mensal é pequena e contém poucos ciclos de halving. A comparação mede associação preditiva nesse recorte e não identifica causalidade.
 - Preços e volumes vêm de uma exchange; o volume não representa toda a demanda global por Bitcoin.
 - O modelo não incorpora notícias futuras, juros futuros ou outros acontecimentos que ainda não ocorreram. Ele também não recebe cotações em tempo real.
 - O mês parcial fica fora das features, e a data alvo permanece vinculada à referência do modelo salvo.
-- A avaliação teve apenas 12 meses por horizonte, com resultado inferior à persistência. As previsões são experimentais e não representam recomendação de investimento.
+- A avaliação apresentada pela API teve apenas 12 meses por horizonte, com resultado inferior à persistência. A pesquisa adicional em `research.py` avaliou 30 meses alvo, de março/2023 a agosto/2025, em um período diferente. As previsões são experimentais e não representam recomendação de investimento.
 
 | Critério da atividade | Evidência no projeto |
 | --- | --- |
@@ -421,25 +533,8 @@ A porta 8000 precisa estar livre. Em outro terminal, `python3 scripts/demo.py` d
 | Dev Log — 40% | Registros pessoais da autora, com decisões, dificuldades, comandos e resultados observados. |
 | Observações do professor — 20% | Participação e capacidade de explicar as escolhas durante a atividade. |
 
-A entrega deve estar em um **repositório público próprio no GitHub**. O link da atividade no início deste documento é o enunciado do professor. A autora precisa conferir o acesso ao seu repositório e apresentar a demonstração.
+A entrega está no repositório [loreggarcia/Docker-ponderada](https://github.com/loreggarcia/Docker-ponderada). O link da atividade no início deste documento é o enunciado do professor. A versão publicada deve incluir o README atualizado e as imagens [architecture.png](artifacts/architecture.png) e [architecture-blocks.png](artifacts/architecture-blocks.png), para que os dois diagramas apareçam no GitHub. A demonstração usa os comandos de treinamento e consulta à API documentados acima.
 
 ## Uso de IA
 
-Implementação e documentação técnica elaboradas com assistência do **Codex**, incluindo dados, modelagem, API, Docker, diagrama e verificações. A organização por etapas e os pedidos usados para explicar o código também tiveram assistência de IA. O texto técnico não substitui os registros pessoais de desenvolvimento.
-
-**Declaração pessoal da autora sobre uso de IA:** _preencher sem reescrita por IA._
-
-## Dev Log pessoal
-
-**Esta seção deve ser escrita pela autora durante o trabalho.** Conforme a orientação do professor, os relatos pessoais não devem ser escritos, corrigidos ou reescritos por IA. Os campos abaixo são somente um modelo vazio; não constituem evidência de etapas realizadas.
-
-### Registro — preencher data e horário reais
-
-- O que decidi fazer e por quê:
-- O que eu entendi sobre a arquitetura e o modelo:
-- Comando, alteração ou teste que executei:
-- Resultado observado, dificuldade ou erro:
-- O que mudei e qual será meu próximo passo:
-- Como utilizei IA nesta etapa:
-
-_Acrescentar novos registros conforme o desenvolvimento ocorrer, preservando as próprias palavras._
+Implementação e documentação técnica elaboradas com assistência do **Codex**, incluindo dados, modelagem, API, Docker, diagrama e verificações. A organização por etapas e os pedidos usados para explicar o código também tiveram assistência de IA. O relato de desenvolvimento está no início deste README.
